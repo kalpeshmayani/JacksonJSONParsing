@@ -1,127 +1,95 @@
 package com.kpinfotech.webservice;
 
-import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.util.EntityUtils;
-
-import android.util.Log;
+import javax.net.ssl.HttpsURLConnection;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import android.util.Log;
+
 public class WSRequestGet {
 
-	private static final String LOG_TAG = "WebServiceRequestGet";
+    static final String LOG_TAG = "WebServiceRequestGet";
+    static final Lock lock = new ReentrantLock();
+    static ObjectMapper mapper = null;
 
-	private static final Lock lock = new ReentrantLock();
+    HttpURLConnection connection;
+    URL url;
 
-	private HttpGet httpGet;
+    String result = "";
 
-	private HttpClient client;
+    public WSRequestGet(String url) {
+        try {
+            url = url.replace(" ", "");
 
-	private String url;
+            this.url = new URL(url);
+            connection = (HttpURLConnection) this.url.openConnection();
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setReadTimeout(15000);
+            connection.setConnectTimeout(15000);
+            connection.setRequestMethod("GET");
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-	private HttpResponse response;
+    public <CLS> CLS execute(Class<CLS> responseType) throws Exception {
+        CLS returnClass = null;
 
-	private static ObjectMapper mapper = null;
+        try {
 
-	String data;
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpsURLConnection.HTTP_OK) {
+                String line;
+                BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                while ((line = br.readLine()) != null) {
+                    result += line;
+                }
 
-	public WSRequestGet(String _url) {
-		client = new DefaultHttpClient();
-		this.url = _url;
-	}
+                if (responseType != Void.class) {
+                    returnClass = getMapper().readValue(result, responseType);
+                }
+            } else {
+                result = "";
+                returnClass = null;
+            }
 
-	public <CLS> CLS execute(Class<CLS> responseType) throws Exception {
-		CLS returnClass = null;
-		InputStream is = null;
+        } catch (Exception e) {
+            e.printStackTrace();
+            result = "";
+            returnClass = null;
+        }
 
-		try {
+        return returnClass;
+    }
 
-			if (Log.isLoggable(LOG_TAG, Log.INFO)) {
-				Log.i(LOG_TAG, "URL :: " + url);
-			}
+    protected synchronized ObjectMapper getMapper() {
 
-			// url = URLEncoder.encode(url, "utf-8");
-			url = url.replace(" ", "%20");
-			httpGet = new HttpGet(url);
+        if (mapper != null) {
+            return mapper;
+        }
+        try {
+            lock.lock();
+            if (mapper == null) {
+                mapper = new ObjectMapper();
+                mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
+            }
+            lock.unlock();
+        } catch (Exception e) {
+            if (e != null)
+                Log.e(LOG_TAG, "Mapper Initialization Failed. Exception :: " + e.getMessage());
+        }
 
-			// Send Request
-			response = client.execute(httpGet);
+        return mapper;
+    }
 
-			// Operation Aborted
-			if (httpGet.isAborted()) {
-				throw new Exception(String.format("Operation [%s] is aborted.",
-						url));
-			}
-
-			// Read Response
-			HttpEntity httpEntity = response.getEntity();
-
-			// Build Return Object
-			if (httpEntity != null && responseType != Void.class) {
-
-				data = EntityUtils.toString(httpEntity);
-
-				Log.i(LOG_TAG, "Response :: " + data);
-
-				returnClass = getMapper().readValue(data, responseType);
-				Log.i(LOG_TAG, "URL :: " + url + " Completed");
-
-			}
-		} catch (Exception ex) {
-			if (ex != null)
-				Log.e(LOG_TAG, "Exception :: " + ex.toString());
-			returnClass = null;
-
-			throw ex;
-		} finally {
-
-			if (is != null) {
-				try {
-					is.close();
-				} catch (Exception ex) {
-					throw ex;
-				}
-			}
-			httpGet = null;
-		}
-		return returnClass;
-	}
-
-	public void abort() throws Exception {
-
-		if (httpGet != null) {
-			httpGet.abort();
-			httpGet = null;
-		}
-	}
-
-	protected synchronized ObjectMapper getMapper() {
-
-		if (mapper != null) {
-			return mapper;
-		}
-		try {
-			lock.lock();
-			if (mapper == null) {
-				mapper = new ObjectMapper();
-				mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES,false);
-			}
-			lock.unlock();
-		} catch (Exception ex) {
-			if (ex != null)
-				Log.e(LOG_TAG, "Mapper Initialization Failed. Exception :: "
-						+ ex.getMessage());
-		}
-
-		return mapper;
-	}
 }

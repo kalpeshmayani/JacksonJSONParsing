@@ -1,139 +1,133 @@
 package com.kpinfotech.webservice;
 
-import java.util.List;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.util.EntityUtils;
-
-import android.util.Log;
+import javax.net.ssl.HttpsURLConnection;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
+
+import android.content.ContentValues;
+import android.util.Log;
 
 public class WSRequestPost {
 
-	private static final String LOG_TAG = "WebServiceRequestPost";
+    static final String LOG_TAG = "WebServiceRequestPost";
+    static final Lock lock = new ReentrantLock();
+    static ObjectMapper mapper = null;
 
-	private static final Lock lock = new ReentrantLock();
+    HttpURLConnection connection;
+    URL url;
 
-	private HttpPost httpPost;
+    String result = "";
 
-	private HttpClient client;
+    public WSRequestPost(String url) {
+        try {
+            url = url.replace(" ", "");
 
-	private String url;
+            this.url = new URL(url);
+            connection = (HttpURLConnection) this.url.openConnection();
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setReadTimeout(15000);
+            connection.setConnectTimeout(15000);
+            connection.setRequestMethod("POST");
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-	private HttpResponse response;
+    public <Request, Response> Response execute(
+            ContentValues values, Class<Response> responseType, Request request) throws Exception {
 
-	private static ObjectMapper mapper = null;
+        Response response = null;
 
-	String data;
+        try {
+            OutputStream os = connection.getOutputStream();
+            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(os, "UTF-8"));
+            bw.write(getPostData(values));
 
-	public WSRequestPost(String _url) {
-		client = new DefaultHttpClient();
-		this.url = _url;
-	}
+            bw.flush();
+            bw.close();
+            os.close();
+            int responseCode = connection.getResponseCode();
 
-	public <Request, Response> Response execute(List<NameValuePair> nameValuePairs, Class<Response> responseType,
-			Request request) throws Exception {
+            if (responseCode == HttpsURLConnection.HTTP_OK) {
+                String line;
+                BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                while ((line = br.readLine()) != null) {
+                    result += line;
+                }
 
-		Response ret = null;
-		int statusCode = 0;
+                response = getMapper().readValue(result, responseType);
+            } else {
+                result = "";
+                response = null;
+            }
 
-		try {
-			if (Log.isLoggable(LOG_TAG, Log.DEBUG)) {
-				Log.d(LOG_TAG, "Executing url: " + url);
-			}
+        } catch (Exception e) {
+            e.printStackTrace();
+            result = "";
+            response = null;
+        }
 
-			httpPost = new HttpPost(url);
-			ObjectWriter writer = getMapper().writer();
+        return response;
+    }
 
-			if (request != null) {
-				String jsonObject = "";
-				if (request != null) {
-					// writer.writeValueAsString( request );
-					jsonObject = writer.writeValueAsString(request);
-				}
+    private String getPostData(ContentValues values) throws UnsupportedEncodingException {
+        StringBuilder result = new StringBuilder();
+        boolean first = true;
 
-				StringEntity entity = new StringEntity(jsonObject, "UTF-8");
+        Set<Map.Entry<String, Object>> set = values.valueSet();
 
-				httpPost.setEntity(entity);
-			} else {
-				if (nameValuePairs != null) {
-					httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-				}
-			}
+        for (Map.Entry me : set) {
+            if (first)
+                first = false;
+            else
+                result.append("&");
 
-			// now send the request
-			response = client.execute(httpPost);
+            String key = me.getKey().toString();
+            String value = me.getValue().toString();
 
-			if (httpPost.isAborted()) {
-				throw new Exception(String.format("Operation [%s] is aborted.",
-						url));
-			}
-			statusCode = response.getStatusLine().getStatusCode();
+            result.append(URLEncoder.encode(key, "UTF-8"));
+            result.append("=");
+            result.append(URLEncoder.encode(value, "UTF-8"));
+        }
 
-			// read the response
-			if (statusCode == 200) {
+        return result.toString();
+    }
 
-				HttpEntity httpEntity = response.getEntity();
-				data = EntityUtils.toString(httpEntity);
-				//Log.e(LOG_TAG, data);
-				ret = getMapper().readValue(data, responseType);
+    protected synchronized ObjectMapper getMapper() {
 
-			} else {
-				ret = null;
-			}
+        if (mapper != null) {
+            return mapper;
+        }
+        try {
+            lock.lock();
+            if (mapper == null) {
+                mapper = new ObjectMapper();
+                mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
+            }
+            lock.unlock();
+        } catch (Exception e) {
+            if (e != null)
+                Log.e(LOG_TAG, "Mapper Initialization Failed. Exception :: " + e.getMessage());
+        }
 
-			httpPost = null;
-		} catch (Exception ex) {
-			if (ex != null)
-				Log.e(LOG_TAG, "Status code: " + Integer.toString(statusCode)
-						+ " Exception thrown: " + ex.getMessage());
-			ret = null;
-			throw ex;
-		}
-
-		return ret;
-	}
-
-	public void abort() throws Exception {
-
-		if (httpPost != null) {
-			httpPost.abort();
-			httpPost = null;
-		}
-	}
-
-	protected synchronized ObjectMapper getMapper() {
-
-		if (mapper != null) {
-			return mapper;
-		}
-
-		try {
-
-			lock.lock();
-			if (mapper == null) {
-				mapper = new ObjectMapper();
-				mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
-			}
-			lock.unlock();
-		} catch (Exception ex) {
-			if (ex != null)
-				Log.e(LOG_TAG, "Mapper Initialization Failed. Exception :: " + ex.getMessage());
-		}
-
-		return mapper;
-	}
+        return mapper;
+    }
 
 }

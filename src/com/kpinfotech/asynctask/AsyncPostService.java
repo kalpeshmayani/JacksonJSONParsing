@@ -1,9 +1,5 @@
 package com.kpinfotech.asynctask;
 
-import java.util.List;
-
-import org.apache.http.NameValuePair;
-
 import com.kpinfotech.global.AppConstant;
 import com.kpinfotech.global.AppMethod;
 import com.kpinfotech.interfaces.WSAsync;
@@ -11,6 +7,7 @@ import com.kpinfotech.model.ResponseObject;
 import com.kpinfotech.webservice.WSRequest;
 
 import android.app.Activity;
+import android.content.ContentValues;
 import android.os.AsyncTask;
 import android.support.v4.app.Fragment;
 import android.util.Log;
@@ -23,27 +20,27 @@ public class AsyncPostService extends AsyncTask<String, Void, Object> {
 	Fragment fragment;
 	
 	String serviceType;
-	List<NameValuePair> nameValuePair;
+	ContentValues values;
 	boolean isLoaderEnable;
 	
 	Exception error = null;
 
 	WSAsync i_WSAsync;
 
-	public AsyncPostService(Activity activity, String serviceType, List<NameValuePair> nameValuePair, boolean isLoaderEnable) {
+	public AsyncPostService(Activity activity, String serviceType, ContentValues values, boolean isLoaderEnable) {
 		this.i_WSAsync = (WSAsync) activity;
 		this.activity = activity;
 		this.serviceType = serviceType;
-		this.nameValuePair = nameValuePair;
+		this.values = values;
 		this.isLoaderEnable = isLoaderEnable;
 	}
 
-	public AsyncPostService(Activity activity, Fragment Fragment, String serviceType, List<NameValuePair> nameValuePair, boolean isLoaderEnable) {
+	public AsyncPostService(Activity activity, Fragment Fragment, String serviceType, ContentValues values, boolean isLoaderEnable) {
 		this.i_WSAsync = (WSAsync) Fragment;
 		this.activity = activity;
 		this.fragment = Fragment;
 		this.serviceType = serviceType;
-		this.nameValuePair = nameValuePair;
+		this.values = values;
 		this.isLoaderEnable = isLoaderEnable;
 	}
 
@@ -59,7 +56,7 @@ public class AsyncPostService extends AsyncTask<String, Void, Object> {
 	protected Object doInBackground(String... params) {
 
 		try {
-			return new WSRequest().getPostRequest(params[0], ResponseObject.class, null, nameValuePair);
+			return new WSRequest().getPostRequest(params[0], ResponseObject.class, null, values);
 		} catch (Exception e) {
 			this.error = e;
             Log.e(LOG_TAG, e.getMessage());

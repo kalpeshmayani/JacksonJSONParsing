@@ -1,8 +1,6 @@
 package com.kpinfotech.webservice;
 
-import java.util.List;
-
-import org.apache.http.NameValuePair;
+import android.content.ContentValues;
 
 public class WSRequest {
 
@@ -12,8 +10,8 @@ public class WSRequest {
 	}
 
 	/** Post Request **/
-	public <CLS> CLS getPostRequest(String url, Class<CLS> cls, Object reqCls, List<NameValuePair> nameValuePairs) throws Exception {
-		return new WSRequestPost(url).execute(nameValuePairs, cls, reqCls);
+	public <CLS> CLS getPostRequest(String url, Class<CLS> cls, Object reqCls, ContentValues values) throws Exception {
+		return new WSRequestPost(url).execute(values, cls, reqCls);
 	}
 
 }
