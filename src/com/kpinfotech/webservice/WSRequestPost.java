@@ -44,7 +44,7 @@ public class WSRequestPost {
             connection.setConnectTimeout(15000);
             connection.setRequestMethod("POST");
             connection.setDoInput(true);
-            connection.setDoOutput(true);
+            connection.setDoOutput(true); // indicates POST method
         } catch (Exception e) {
             e.printStackTrace();
         }

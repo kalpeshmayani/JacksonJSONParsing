@@ -1,4 +1,5 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical" >
@@ -27,6 +28,7 @@
                 android:id="@+id/lvlist"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                tools:listitem="@layout/adapter_filelist"
                 android:cacheColorHint="@android:color/transparent"
                 android:divider="@null"
                 android:scrollbars="none" />
